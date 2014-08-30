@@ -1,0 +1,364 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "VPC Template creates public and private subnet. Puts a VPN gateway in the public subnet, and an instance in the private subnet - routing it to the VPNgateway",
+    "Parameters": {
+        "CIDRBLOCK": {
+            "Description": "CIDR Block for VPC",
+            "Type": "String",
+            "Default": "10.100.0.0/16",
+            "AllowedValues": [ 
+                "10.100.0.0/16",
+                "10.200.0.0/16"
+            ],
+            "ConstraintDescription": "must be valid CIDR block which is part of our network plan"
+        },
+        "PublicCIDR": {
+            "Description": "CIDR Block for Public subnet",
+            "Type": "String",
+            "Default": "10.100.1.0/24",
+            "AllowedValues": [ 
+                "10.100.1.0/24",
+                "10.200.1.0/24"
+            ],
+            "ConstraintDescription": "must be valid CIDR block which is part of our network plan"
+        },
+        "PrivateCIDR": {
+            "Description": "CIDR Block for Private subnet",
+            "Type": "String",
+            "Default": "10.100.101.0/24",
+            "AllowedValues": [ 
+                "10.100.101.0/24",
+                "10.200.101.0/24"
+            ],
+            "ConstraintDescription": "must be valid CIDR block which is part of our network plan"
+        },
+        "KeyName" : {
+            "Description" : "Key to use for the instances",
+            "Type" : "String"
+        },
+        "VpcName" : {
+            "Description" : "Tag for everything in the VPC",
+            "Type" : "String"
+        },
+        "RemoteCIDRBLOCK" : {
+            "Description" : "Remote CIDRBLOCK to VPN to",
+            "Type" : "String"
+        }
+    },
+    "Mappings" : {
+        "AWSAMI" : {
+            "us-east-1"      : { "AMI" : "ami-" },
+            "us-west-2"      : { "AMI" : "ami-" },
+            "us-west-1"      : { "AMI" : "ami-" },
+            "eu-west-1"      : { "AMI" : "ami-892fe1fe" },
+            "ap-southeast-1" : { "AMI" : "ami-" },
+            "ap-southeast-2" : { "AMI" : "ami-" },
+            "ap-northeast-1" : { "AMI" : "ami-" },
+            "sa-east-1"      : { "AMI" : "ami-" }
+        }
+    },
+    "Resources": {
+        "VPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "EnableDnsSupport" : "true",
+                "EnableDnsHostnames" : "true",
+                "CidrBlock": { "Ref" : "CIDRBLOCK" },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": { "Ref" : "VpcName" }
+                    }
+                ]
+            }
+        },
+
+        "VPCPublicSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Ref" : "PublicCIDR" },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "0",
+                        {
+                            "Fn::GetAZs" : ""
+                        }
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Network",
+                        "Value": "Public"
+                    }
+                ]
+            }
+        },
+
+        "VPCPrivateSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "CidrBlock": { "Ref" : "PrivateCIDR" },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        "0",
+                        {
+                            "Fn::GetAZs" : ""
+                        }
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Network",
+                        "Value": "Private"
+                    }
+                ]
+            }
+        },
+
+        "VPCInternetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Network",
+                        "Value": "Public"
+                    }
+                ]
+            }
+        },
+
+        "VPCAttachGateway": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "InternetGatewayId": {
+                    "Ref": "VPCInternetGateway"
+                }
+            }
+        },
+
+        "VPCPublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Network",
+                        "Value": "Public"
+                    }
+                ]
+            }
+        },
+
+        "VPCPublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VPCPublicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "VPCInternetGateway"
+                }
+            }
+        },
+        
+        "VPCPublicRouteVPN": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VPCPublicRouteTable"
+                },
+                "DestinationCidrBlock": { "Ref" : "RemoteCIDRBLOCK" },
+                "InstanceId": {
+                    "Ref": "VPNGateway"
+                }
+            }
+        },
+
+        "VPCPublicSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "VPCPublicSubnet"
+                },
+                "RouteTableId": {
+                    "Ref": "VPCPublicRouteTable"
+                }
+            }
+        },
+
+        "VPCDHCPOptions": {
+            "Type": "AWS::EC2::DHCPOptions",
+            "Properties": {
+                "DomainName": "VPCdomain.com",
+                "DomainNameServers": [
+                    "AmazonProvidedDNS"
+                ],
+                "NtpServers": [
+                    "10.0.0.2"
+                ],
+                "NetbiosNodeType": 2
+            }
+        },
+
+        "NetworkDHCPOpts": {
+            "Type": "AWS::EC2::VPCDHCPOptionsAssociation",
+            "Properties": {
+                "DhcpOptionsId": {
+                    "Ref": "VPCDHCPOptions"
+                },
+                "VpcId": {
+                    "Ref": "VPC"
+                }
+            }
+        },
+
+        "VPCPrivateRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Network",
+                        "Value": "Private"
+                    }
+                ]
+            }
+        },
+        
+        "VPCPrivateRouteVPN": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VPCPrivateRouteTable"
+                },
+                "DestinationCidrBlock": { "Ref" : "RemoteCIDRBLOCK" },
+                "InstanceId": {
+                    "Ref": "VPNGateway"
+                }
+            }
+        },
+
+        "VPCPrivateSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "VPCPrivateSubnet"
+                },
+                "RouteTableId": {
+                    "Ref": "VPCPrivateRouteTable"
+                }
+            }
+        },
+
+        "VPCPrivateNetworkAcl": {
+            "Type": "AWS::EC2::NetworkAcl",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "Tags": [
+                    {
+                        "Key": "Network",
+                        "Value": "Private"
+                    }
+                ]
+            }
+        },
+        
+        "VPNEIP" : {
+            "Type" : "AWS::EC2::EIP",
+            "Properties" : {
+                "InstanceId" : { "Ref" : "VPNGateway" }
+            }
+        },
+        
+        "VPNGateway" : {
+            "Type" : "AWS::EC2::Instance",
+            "Properties" : {
+                "InstanceType" : "t2.medium",
+                "KeyName" : { "Ref" : "KeyName" },
+                "SubnetId" : { "Ref" : "VPCPublicSubnet" },
+                "SourceDestCheck" : "false",
+                "ImageId" : { "Fn::FindInMap" : [ "AWSAMI", { "Ref" : "AWS::Region" }, "AMI" ]},
+                "SecurityGroupIds" : [{ "Ref" : "VPNSecurityGroup" }],
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "VPN Gateway" }
+                ]
+            }
+        },
+        
+        "PrivateInstance" : {
+            "Type" : "AWS::EC2::Instance",
+            "Properties" : {
+                "InstanceType" : "t2.medium",
+                "KeyName" : { "Ref" : "KeyName" },
+                "SubnetId" : { "Ref" : "VPCPrivateSubnet" },
+                "SourceDestCheck" : "true",
+                "ImageId" : { "Fn::FindInMap" : [ "AWSAMI", { "Ref" : "AWS::Region" }, "AMI" ]},
+                "SecurityGroupIds" : [{ "Ref" : "PrivateInstanceSecurityGroup" }],
+                "Tags" : [
+                    { "Key" : "Name", "Value" : "PrivateInstance" }
+                ]
+            }
+        },
+        
+        "VPNSecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupDescription" : "Rules for allowing access to HA Nodes",
+                "VpcId" : { "Ref" : "VPC" },
+                "SecurityGroupIngress" : [
+                    { "IpProtocol" : "tcp", "FromPort" : "22",  "ToPort" : "22",  "CidrIp" : "0.0.0.0/0" },
+                    { "IpProtocol" : "-1", "FromPort" : "0",  "ToPort" : "65535",  "CidrIp" : { "Ref" : "CIDRBLOCK" }},
+                    { "IpProtocol" : "-1", "FromPort" : "0",  "ToPort" : "65535",  "CidrIp" : { "Ref" : "RemoteCIDRBLOCK" }}
+                ],
+                "SecurityGroupEgress" : [
+                    { "IpProtocol" : "-1", "FromPort" : "0", "ToPort" : "65535", "CidrIp" : "0.0.0.0/0" }
+                ]
+            }
+        },
+        
+        "PrivateInstanceSecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupDescription" : "Rules for allowing access to HA Nodes",
+                "VpcId" : { "Ref" : "VPC" },
+                "SecurityGroupIngress" : [
+                    { "IpProtocol" : "-1", "FromPort" : "0",  "ToPort" : "65535",  "CidrIp" : { "Ref" : "CIDRBLOCK" }},
+                    { "IpProtocol" : "-1", "FromPort" : "0",  "ToPort" : "65535",  "CidrIp" : { "Ref" : "RemoteCIDRBLOCK" }}
+                ],
+                "SecurityGroupEgress" : [
+                    { "IpProtocol" : "-1", "FromPort" : "0", "ToPort" : "65535", "CidrIp" : "0.0.0.0/0" }
+                ]
+            }
+        }
+
+
+    },
+    
+    "Outputs" : {
+        "VPNGatewayIp" : {
+            "Value" : { "Fn::GetAtt" : ["VPNGateway", "PublicIp"] }
+        },
+        "PublicInstanceIp" : {
+            "Value" : { "Fn::GetAtt" : ["VPNGateway", "PrivateIp"] }
+        },
+        "PrivateInstanceIp" : {
+            "Value" : { "Fn::GetAtt" : ["PrivateInstance", "PrivateIp"] }
+        }
+    }
+}

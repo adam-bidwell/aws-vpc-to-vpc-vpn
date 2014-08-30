@@ -1,0 +1,26 @@
+[
+    {
+        "ParameterKey": "CIDRBLOCK",
+        "ParameterValue": ""
+    }, 
+    {
+        "ParameterKey": "PublicCIDR",
+        "ParameterValue": ""
+    }, 
+    {
+        "ParameterKey": "PrivateCIDR",
+        "ParameterValue": ""
+    }, 
+    {
+        "ParameterKey": "KeyName",
+        "ParameterValue": ""
+    }, 
+    {
+        "ParameterKey": "VpcName",
+        "ParameterValue": ""
+    }, 
+    {
+        "ParameterKey": "RemoteCIDRBLOCK",
+        "ParameterValue": ""
+    }
+]
