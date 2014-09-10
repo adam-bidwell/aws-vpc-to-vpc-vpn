@@ -1,6 +1,11 @@
 # Amazon Web Services VPC to VPC VPN tunnel
 
-This repository is some snippets of code to configure a tunnel between two VPC networks in AWS.
+This repository is some snippets of code to configure a tunnel between two VPC networks in AWS. In the example script and detail below we are allowing all traffic between the two endpoints, in production you would want to narrow this down significantly. The two endpoints would only require the following ports between each other to allow an IPSec connection:
+
+* UDP port 500 for the Internet Key Exchange (IKE) protocol
+* UDP port 4500 for IKE NAT-Traversal
+* Protocol 50 for Encapsulated Security Payload (ESP) IPsec packets
+* Protocol 51 for Authenticated Header (AH) IPsec packets (uncommon)
 
 ## Usage
 
